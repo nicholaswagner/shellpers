@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+
+#   Examples:
+#
+#   # Get VALUE for KEY (case insensitive)
+#   dotenv port
+#
+#   # Set VALUE for KEY
+#   dotenv ip 127.0.0.1
+#
+#   Use an alternate dotenv file
+#   --file=./environments/staging.env KEY VALUE
+
+ENV_File="$(pwd)/.env"
+PARAMS=""
+
+function dotenv_helper() {
+    if [ -e ${ENV_File} ] ; then
+        if [ -z "$1" ] ; then
+            cat ${ENV_File}
+        else
+            key=$(grep -io "^$1=" ${ENV_File})
+            # Error: Key does not exist and no value provided..
+            if [ -z ${key} ] && [ -z $2 ] ; then
+                echo "ERROR: $1 is not a valid key"
+                exit 1
+            fi
+            # Key does not exist in file, and both key and value options were provided.
+            if [ -z ${key} ] && [ ! -z $1 ] && [ ! -z $2 ] ; then
+                echo "$1=$2" >> ${ENV_File} # Add a new key/value pair to file
+            else
+                # Key exists, and no other options provided.
+                if [ -z $2 ] ; then
+                    echo "$(grep -i "^$1=" ${ENV_File} | sed -E "s/^(.*)=[[:space:]]?//g")" # Return value for key
+                else
+                    sed -i '' -E "s/^${key}.*/${key}$2/" ${ENV_File} # Update this key/value pair
+                fi
+            fi
+        fi
+    else
+        # DotEnv file not found, and no valid key/vaiue pair provided.  Better to fail now.
+        if [ -z $1 ] || [ -z $2 ] ; then
+            echo "ERROR: The following dotenv file does not exist: ${ENV_File}"
+            exit 1
+        fi
+        
+        # If DotEnv file does not exist, but key/value pair provided, create one.
+        if [ ! -z "$2" ] ; then
+            echo "$1=$2" > ${ENV_File}
+            echo "${ENV_File} created successfully"
+        fi
+    fi
+    
+    #   Every time this script is run, export all env vars to the current shell
+    while read -r line ; do
+        export "$line"
+    done < ${ENV_File}
+}
+
+for i in "$@"
+do
+    case $i in
+        --file=*)
+            ENV_File="${i#*=}"
+            shift
+        ;;
+        *)
+            PARAMS+=" ${i#=}"
+            shift
+        ;;
+    esac
+done
+
+dotenv_helper ${PARAMS}
